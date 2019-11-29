@@ -10,12 +10,11 @@
 		<arg name="move_base" value="$(arg move_base)"/>
 	</include>
 	
-	<!--TROBA FRONTERES-->
+	<!--RANDOM EXPLORATION-->
 	<node pkg="exploracio" 
-  		  type="troba_fronteres_node" 
-  		  name="troba_fronteres_node" 
+  		  type="explora_random_node" 
+  		  name="explora_random_node" 
   	      output="log">
-  	      <remap from="~map" to="/map"/>
 	</node>
 	
 	<node name="rviz"
