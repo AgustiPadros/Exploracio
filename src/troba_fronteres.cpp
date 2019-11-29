@@ -3,7 +3,9 @@
 TrobaFronteres::TrobaFronteres(ros::NodeHandle& nh)
 {
     nh_ = nh;
-    //nh_.param<double>("temps_prudent", t_prudent_, 5.0);
+
+    nh_.param<int>("tamany_min_frontera", min_frontier_size_, 5);
+
     fronteres_pub_       = nh_.advertise<exploracio::Fronteres>("fronteres", 1);
     mapa_fronteres_pub_  = nh_.advertise<nav_msgs::OccupancyGrid>("mapa_fronteres", 1);
     markers_pub_         = nh_.advertise<visualization_msgs::MarkerArray>("markers", 1);
@@ -68,10 +70,20 @@ void TrobaFronteres::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
         }
     }
 
+    // calcular tamany i filtrar fronteres massa petites
+    for (auto f_it = fronteres_msg.fronteres.begin(); f_it != fronteres_msg.fronteres.end();)
+    {
+        f_it->size = f_it->celles_celles.size();
+
+        if (f_it->size < min_frontier_size_)
+            f_it = fronteres_msg.fronteres.erase(f_it);
+        else
+            f_it++;
+    }
+
     // Calcula cella central
     for(unsigned int i = 0; i < fronteres_msg.fronteres.size(); ++i)
     {
-        fronteres_msg.fronteres[i].size = fronteres_msg.fronteres[i].celles_celles.size();
         int label = fronteres_msg.fronteres[i].id;
 
         // order the frontier cells

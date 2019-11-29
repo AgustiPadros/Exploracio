@@ -17,6 +17,8 @@ ExploraRandom::ExploraRandom(ros::NodeHandle& nh) :
     map_sub_             = nh_.subscribe("/map", 1, &ExploraRandom::mapCallback,this);
     fronteres_sub_       = nh_.subscribe("/fronteres", 1, &ExploraRandom::fronteresCallback,this);
 
+    goal_marker_pub_     = nh_.advertise<visualization_msgs::Marker>("goal_marker", 1);
+
     get_plan_client_     = nh_.serviceClient<nav_msgs::GetPlan>("/move_base/NavfnROS/make_plan");
 }
 
@@ -33,18 +35,11 @@ void ExploraRandom::fronteresCallback(const exploracio::Fronteres::ConstPtr& msg
 bool ExploraRandom::replanifica()
 {
   bool replan = false;
-  ////////////////////////////////////////////////////////////////////
-  // TODO 2: replan
-  ////////////////////////////////////////////////////////////////////
 
-  //EXAMPLE: replan when robot reaches a goal
+  //EXEMPLE: replanifica quan el robot hagi arribat
   if(robot_status_!=0)
     replan = true;
-  //EXAMPLE END
 
-  ////////////////////////////////////////////////////////////////////
-  // TODO 2 END
-  ////////////////////////////////////////////////////////////////////
   return replan;
 }
 
@@ -52,97 +47,20 @@ geometry_msgs::Pose ExploraRandom::decideixGoal()
 {
   geometry_msgs::Pose g;
   double length;
-  ////////////////////////////////////////////////////////////////////
-  // TODO 3: decideGoal
-  ////////////////////////////////////////////////////////////////////
 
-  //EXAMPLE: Choose valid random goal
+  //EXEMPLE: Genera destíns random fins que sigui goal valid
   srand((unsigned)time(NULL));
   do
   {
     g = generaRandomPose(3.0);
   }
-  while(!isValidGoal(g.position, length ));
+  while(!esGoalValid(g.position, length ));
 
-  //publishMarker(0,g.position.x,g.position.y,4,1,tf::getYaw(g.orientation));
-  //EXAMPLE END
-
-  ////////////////////////////////////////////////////////////////////
-  // TODO 3 END
-  ////////////////////////////////////////////////////////////////////
   return g;
 }
-
-geometry_msgs::Pose ExploraRandom::generaRandomPose(float radius)
-{
-  geometry_msgs::Pose goal_pose;
-
-  if (radius <= 0)
-  {
-      ROS_WARN("getRandomPose: radius must be > 0. Changed to 1");
-      radius = 1;
-  }
-
-  // gives a pose between +-radius limits. If you add it to robot_pose_ coordinates, you have a random pose around the robot
-  float rand_yaw = 2*M_PI * (rand()%100)/100.0;
-  float rand_r = radius*(rand()%100)/100.0;
-
-  goal_pose.position.x = robot_pose_.position.x + rand_r * cos(rand_yaw);
-  goal_pose.position.y = robot_pose_.position.y + rand_r * sin(rand_yaw);
-  goal_pose.orientation = tf::createQuaternionMsgFromYaw(rand_yaw);
-
-  return goal_pose;
-}
-
-bool ExploraRandom::isValidGoal(const geometry_msgs::Point & point, double & path_length)
-{
-  bool valid=false;
-  nav_msgs::GetPlan get_plan_srv;
-  get_plan_srv.request.start.header.stamp = ros::Time::now();
-  get_plan_srv.request.start.header.frame_id = "map";
-  get_plan_srv.request.start.pose = robot_pose_;
-
-  get_plan_srv.request.goal.header.stamp = ros::Time::now();
-  get_plan_srv.request.goal.header.frame_id = "map";
-  get_plan_srv.request.goal.pose.position.x = point.x;
-  get_plan_srv.request.goal.pose.position.y = point.y;
-  get_plan_srv.request.goal.pose.orientation.w = 1.0;
-  if (get_plan_client_.call(get_plan_srv))
-  {
-    if(get_plan_srv.response.plan.poses.size()!=0)
-    {
-      path_length = get_plan_length(get_plan_srv.response.plan.poses);
-      ROS_INFO("path length %f", path_length);
-      valid=true;
-    }
-  }
-  else
-    ROS_ERROR("Failed to call service get_plan");
-
-  return valid;
-}
-
-double ExploraRandom::get_plan_length(std::vector<geometry_msgs::PoseStamped> poses)
-{
-  double length=0.0;
-  if(poses.size()>=1)
-  {
-    for(unsigned int i=1; i<poses.size(); i++)
-    {
-      double x1 = poses[i-1].pose.position.x;
-      double y1 = poses[i-1].pose.position.y;
-      double x2 = poses[i].pose.position.x;
-      double y2 = poses[i].pose.position.y;
-      double d = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
-      length +=d;
-    }
-  }
-  return length;
-}
-
 void ExploraRandom::treballa()
 {
-    if(refreshRobotPosition())
+    if(actualitzaPosicioRobot())
     {
       if(replanifica())
       {
@@ -175,28 +93,93 @@ void ExploraRandom::acaba()
     ros::shutdown();
 }
 
-// NAVIGATION FUNCTIONS ////////////////////////////////////////////
-//moveRobot: sends goal to the robot
+///// FUNCIONS AUXILIARS //////////////////////////////////////////////////////////////////////
+geometry_msgs::Pose ExploraRandom::generaRandomPose(float radius)
+{
+  geometry_msgs::Pose goal_pose;
+
+  if (radius <= 0)
+  {
+      ROS_WARN("getRandomPose: radius must be > 0. Changed to 1");
+      radius = 1;
+  }
+
+  // dona una pose entre +-radius al voltant de robot_pose_
+  float rand_yaw = 2*M_PI * (rand()%100)/100.0;
+  float rand_r = radius*(rand()%100)/100.0;
+
+  goal_pose.position.x = robot_pose_.position.x + rand_r * cos(rand_yaw);
+  goal_pose.position.y = robot_pose_.position.y + rand_r * sin(rand_yaw);
+  goal_pose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(robot_pose_.orientation) + rand_yaw);
+
+  return goal_pose;
+}
+
+bool ExploraRandom::esGoalValid(const geometry_msgs::Point & point, double & path_length)
+{
+  bool valid=false;
+  nav_msgs::GetPlan get_plan_srv;
+  get_plan_srv.request.start.header.stamp = ros::Time::now();
+  get_plan_srv.request.start.header.frame_id = "map";
+  get_plan_srv.request.start.pose = robot_pose_;
+
+  get_plan_srv.request.goal.header.stamp = ros::Time::now();
+  get_plan_srv.request.goal.header.frame_id = "map";
+  get_plan_srv.request.goal.pose.position.x = point.x;
+  get_plan_srv.request.goal.pose.position.y = point.y;
+  get_plan_srv.request.goal.pose.orientation.w = 1.0;
+  if (get_plan_client_.call(get_plan_srv))
+  {
+    if(get_plan_srv.response.plan.poses.size()!=0)
+    {
+      path_length = calculaLongitudPlan(get_plan_srv.response.plan.poses);
+      ROS_INFO("path length %f", path_length);
+      valid=true;
+    }
+  }
+  else
+    ROS_ERROR("Failed to call service get_plan");
+
+  return valid;
+}
+
+double ExploraRandom::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses)
+{
+  double length=0.0;
+  if(poses.size()>=1)
+  {
+    for(unsigned int i=1; i<poses.size(); i++)
+    {
+      double x1 = poses[i-1].pose.position.x;
+      double y1 = poses[i-1].pose.position.y;
+      double x2 = poses[i].pose.position.x;
+      double y2 = poses[i].pose.position.y;
+      double d = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
+      length +=d;
+    }
+  }
+  return length;
+}
+
+// FUNCIONS DE NAVEGACIÓ ////////////////////////////////////////////////////////////////////////////////////////
+//moveRobot: envia un goal al robot
 bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
 {
-  //tell the action client that we want to spin a thread by default
-  //MoveBaseClient ac("move_base", true);
-
-  //wait for the action server to come up
+  //espera action server
   if(!action_move_base_.waitForServer(ros::Duration(5.0)))
   {
     ROS_INFO("moveRobot: Waiting for the move_base action server to come up");
     return false;
   }
 
-  // overwrite the frame_id and stamp
+  // escriu the frame_id i stamp
   move_base_msgs::MoveBaseGoal goal;
   goal.target_pose.header.frame_id = "/map";
   goal.target_pose.header.stamp = ros::Time::now();
   goal.target_pose.pose = goal_pose;
 
   num_goals_enviats_++;
-  ROS_INFO("moveRobot: Sending Goal #%d: x=%4.2f, y=%4.2f, yaw=%4.2f in frame=%s",
+  ROS_INFO("moveRobot: Enviant Goal #%d: x=%4.2f, y=%4.2f, yaw=%4.2f al frame_id=%s",
            num_goals_enviats_,
            goal.target_pose.pose.position.x,
            goal.target_pose.pose.position.y,
@@ -206,7 +189,7 @@ bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
   ros::Duration t = ros::Time::now() - inici_exploracio_;
   int elapsed_time_minutes = int(t.toSec())/60;
   int elapsed_time_seconds = int(t.toSec())%60;
-  ROS_INFO("Exploration status: Sent %d goals (reached %d). Wheel travelled %.2f meters. Elapsed %2.2i:%2.2i min. Explored %.2f m^2 (%d cells)",
+  ROS_INFO("Status de l'exploració: Enviats %d goals (assolits %d). Distància recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel·les)",
            num_goals_enviats_,
            num_goals_ok_,
            distancia_recorreguda_,
@@ -218,25 +201,25 @@ bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
                              boost::bind(&ExploraRandom::move_baseDone, this, _1, _2),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleActiveCallback(),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleFeedbackCallback());
-  robot_status_=0; //moving
+  robot_status_=0; //movent-se
   return true;
 }
 
-//move_baseDone: called when the robot reaches the goal, or navigations finishes for any reason
+//move_baseDone: es crida quan el robot assoleix un goal o es cancela per alguna raó
 void ExploraRandom::move_baseDone(const actionlib::SimpleClientGoalState& state,  const move_base_msgs::MoveBaseResultConstPtr& result)
 {
   //ROS_INFO("move_baseDone");
   if(state==actionlib::SimpleClientGoalState::SUCCEEDED)
   {
-    robot_status_=1; //succedeed
+    robot_status_=1; //èxit
     num_goals_ok_++;
   }
   else
     robot_status_=2; //error
 }
 
-// asks TF for the current position of the robot in map coordinates
-bool ExploraRandom::refreshRobotPosition()
+// Calcula la posició actual a través de TF
+bool ExploraRandom::actualitzaPosicioRobot()
 {
   static bool first=true;
   tf::StampedTransform transform;
@@ -279,6 +262,7 @@ bool ExploraRandom::refreshRobotPosition()
   return true;
 }
 
+////// MAIN ////////////////////////////////////////////////////////////////////////////
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "explora_random_node");

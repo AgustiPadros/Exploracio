@@ -19,30 +19,30 @@ class ExploraRandom
 {
     private:
       ros::NodeHandle nh_;
-      ros::Publisher fronteres_pub_, mapa_fronteres_pub_, markers_pub_;
+      ros::Publisher goal_marker_pub_;
       ros::Subscriber fronteres_sub_, map_sub_;
       ros::ServiceClient get_plan_client_;
 
       actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> action_move_base_;
       tf::TransformListener listener_;
 
-      int robot_status_; //0: moving, 1: goal reached, 2: couldn't reach goal
-      geometry_msgs::Pose target_goal_; //last sent goal
-      int min_frontier_size_; //frontier size threshold
-      geometry_msgs::Pose robot_pose_; //current robot position
-      geometry_msgs::Pose prev_robot_pose_; //last robot pose, used to compute travelled distance
+      int robot_status_; //0: movent-se, 1: goal assolit, 2: no s'ha pogut arribar al goal
+      int min_frontier_size_; // tamany minim de frontera
+      geometry_msgs::Pose target_goal_; //últim goal enviat
+      geometry_msgs::Pose robot_pose_; // posició actual del robot
+      geometry_msgs::Pose prev_robot_pose_; //última posició del robot (s'utilitza per calcular distància recorreguda)
 
       nav_msgs::OccupancyGrid map_;
       exploracio::Fronteres fronteres_;
 
       // estadístiques
-      int num_celles_; //number of map cells (height*width)
-      int num_goals_enviats_; //total sent goals
-      int num_goals_ok_; //succesfully reached goals
-      double distancia_recorreguda_; //stores distance travelled by the robot wheels in meters
-      ros::Time inici_exploracio_; //used to calculate elapsed time
-      int celles_explorades_; //number of explored (!unknown) cells in the map
-      bool exploracio_acabada_; //triggers end of exploration
+      int num_celles_; //nombre de cel·les del mapa (height*width)
+      int num_goals_enviats_; //total goals enviats
+      int num_goals_ok_; // total gols assolits
+      double distancia_recorreguda_; // distància recorreguda al llarg de l'exploració (m)
+      ros::Time inici_exploracio_; // per calcular el temps total de l'exploració
+      int celles_explorades_; // nombre de cel·les explorades
+      bool exploracio_acabada_; // flag per finalitar l'exploració
 
     public:
       ExploraRandom(ros::NodeHandle& nh);
@@ -59,14 +59,14 @@ class ExploraRandom
 
       // AUXILIARS
       geometry_msgs::Pose generaRandomPose(float radius);
-      bool isValidGoal(const geometry_msgs::Point & point, double & path_length);
-      double get_plan_length(std::vector<geometry_msgs::PoseStamped> poses);
+      bool esGoalValid(const geometry_msgs::Point & point, double & path_length);
+      double calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses);
 
       // LOCALITZACIÓ i NAVEGACIÓ
       bool moveRobot(const geometry_msgs::Pose& goal_pose);
       void move_baseDone(const actionlib::SimpleClientGoalState& state,  const move_base_msgs::MoveBaseResultConstPtr& result);
       void move_baseActive();
-      bool refreshRobotPosition();
+      bool actualitzaPosicioRobot();
 };
 
 #endif /* INCLUDE_TROBA_FRONTERES_H_ */

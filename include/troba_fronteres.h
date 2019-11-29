@@ -22,6 +22,7 @@ class TrobaFronteres
       ros::Publisher fronteres_pub_, mapa_fronteres_pub_, markers_pub_;
       ros::Subscriber map_sub_;
       visualization_msgs::MarkerArray markers_;
+      int min_frontier_size_; // tamany minim de frontera
 
     public:
       TrobaFronteres(ros::NodeHandle& nh);
