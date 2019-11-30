@@ -1,6 +1,6 @@
-#include "explora_random.h"
+#include "explora_frontera_major.h"
 
-ExploraRandom::ExploraRandom(ros::NodeHandle& nh) :
+ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
     nh_(nh),
     robot_status_(1),
     num_celles_(0),
@@ -10,29 +10,61 @@ ExploraRandom::ExploraRandom(ros::NodeHandle& nh) :
     inici_exploracio_(ros::Time::now()),
     celles_explorades_(0),
     exploracio_acabada_(false),
+    exploracio_iniciada_(false),
     action_move_base_("move_base",true)
 {
 
-    nh_.param<int>("tamany_min_frontera", min_frontier_size_, 5);
-    map_sub_             = nh_.subscribe("/map", 1, &ExploraRandom::mapCallback,this);
-    fronteres_sub_       = nh_.subscribe("/fronteres", 1, &ExploraRandom::fronteresCallback,this);
+    map_sub_             = nh_.subscribe("/map", 1, &ExploraFronteraMajor::mapCallback,this);
+    fronteres_sub_       = nh_.subscribe("/fronteres", 1, &ExploraFronteraMajor::fronteresCallback,this);
 
     goal_marker_pub_     = nh_.advertise<visualization_msgs::Marker>("goal_marker", 1);
 
     get_plan_client_     = nh_.serviceClient<nav_msgs::GetPlan>("/move_base/NavfnROS/make_plan");
+
+    srand((unsigned)time(NULL));
 }
 
-void ExploraRandom::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
+void ExploraFronteraMajor::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
     map_=*msg;
 }
 
-void ExploraRandom::fronteresCallback(const exploracio::Fronteres::ConstPtr& msg)
+void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstPtr& msg)
 {
-    fronteres_=*msg;
+    fronteres_msg_=*msg;
+
+    // Fins que no hi ha cap missatge de fronteres, no comença l'exploració
+    exploracio_iniciada_ = true;
+
+//
+//
+//    printf("============== Nou missatge Fronteres rebut! ==============\n");
+//    printf("stamp: %i.%i | frame_id: %s | seq: %i\n", fronteres_msg_.header.stamp.sec, fronteres_msg_.header.stamp.nsec, fronteres_msg_.header.frame_id.c_str(), fronteres_msg_.header.seq);
+//    //printf("map_seq: %i\n", fronteres_msg_.map_seq);
+//    printf("Fronteres: %lu\n", fronteres_msg_.fronteres.size());
+//    for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
+//    {
+//        printf("\tfrontera %i:\n",i);
+//        printf("\t\tid %i\n",fronteres_msg_.fronteres[i].id);
+//        printf("\t\tsize %i\n",fronteres_msg_.fronteres[i].size);
+//        printf("\t\tcentre_punt %f, %f, %f\n",fronteres_msg_.fronteres[i].centre_punt.x,fronteres_msg_.fronteres[i].centre_punt.y,fronteres_msg_.fronteres[i].centre_punt.z);
+//        //printf("\t\tcentre_cella %i\n",fronteres_msg_.fronteres[i].centre_cella);
+//        printf("\t\tcentre_lliure_punt %f, %f, %f\n",fronteres_msg_.fronteres[i].centre_lliure_punt.x,fronteres_msg_.fronteres[i].centre_lliure_punt.y,fronteres_msg_.fronteres[i].centre_lliure_punt.z);
+//        //printf("\t\tcentre_lliure_cella %i\n",fronteres_msg_.fronteres[i].centre_lliure_cella);
+//        //printf("\t\tcelles_punts:\n");
+//        //for (int j = 0; j<fronteres_msg_.fronteres[i].celles_punts.size(); j++)
+//        //{
+//        //    printf("\t\t\t%f, %f, %f\n",fronteres_msg_.fronteres[i].celles_punts[j].x,fronteres_msg_.fronteres[i].celles_punts[j].y,fronteres_msg_.fronteres[i].celles_punts[j].z);
+//        //}
+//        //printf("\t\tcelles_celles:\n");
+//        //for (int j = 0; j<fronteres_msg_.fronteres[i].celles_punts.size(); j++)
+//        //{
+//        //    printf("\t\t\t%i\n",fronteres_msg_.fronteres[i].celles_celles[j]);
+//        //}
+//    }
 }
 
-bool ExploraRandom::replanifica()
+bool ExploraFronteraMajor::replanifica()
 {
   bool replan = false;
 
@@ -43,22 +75,49 @@ bool ExploraRandom::replanifica()
   return replan;
 }
 
-geometry_msgs::Pose ExploraRandom::decideixGoal()
+geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
 {
   geometry_msgs::Pose g;
-  double length;
+  double longitud;
 
-  //EXEMPLE: Genera destins random fins que sigui goal valid
-  do
+  // Repassem les fronteres per trobar la més gran
+  int i_max = 0;
+  for (int i = 1; i < fronteres_msg_.fronteres.size(); i++)
   {
-    g = generaRandomPoseAlVoltant(3.0, robot_pose_);
+      // guardem i si la frontera i és més gran que la guardada a i_max
+      if (fronteres_msg_.fronteres[i].size > fronteres_msg_.fronteres[i_max].size)
+      {
+          i_max = i;
+      }
   }
-  while(!esGoalValid(g.position, length ));
+  // Guardem al goal la posició del centre lliure de la frontera i la orientació actual que el robot (per exemple)
+  g.position = fronteres_msg_.fronteres[i_max].centre_lliure_punt;
+  g.orientation = robot_pose_.orientation;
 
+  // Si el centre_lliure_punt de la frontera més gran no és un goal vàlid, generem un goal random al voltant
+  // Anirem augmentant el radi fins que trobem un goal vàlid
+  double radi = 1.0;
+  while (!esGoalValid(g.position, longitud))
+  {
+      printf("!!! Goal no valid (frontera id: %i). Generant goal random amb radi %f...\n",fronteres_msg_.fronteres[i_max].id,radi);
+      g.position = fronteres_msg_.fronteres[i_max].centre_lliure_punt;
+      g.orientation = robot_pose_.orientation;
+      g = generaRandomPoseAlVoltant(radi, g);
+
+      // Fem créixer el radi 5cm
+      // Posar un radi més gran que el tamany del mapa faria més dificil genera una mostra vàlida
+      if (radi < map_.info.height or radi < map_.info.width)
+      {
+          radi += 0.05;
+      }
+  }
   return g;
 }
-void ExploraRandom::treballa()
+void ExploraFronteraMajor::treballa()
 {
+    if (!exploracio_iniciada_)
+        return;
+
     if(actualitzaPosicioRobot())
     {
       if(replanifica())
@@ -75,29 +134,29 @@ void ExploraRandom::treballa()
         acaba();
 }
 
-void ExploraRandom::acaba()
+void ExploraFronteraMajor::acaba()
 {
     double t = (ros::Time::now() - inici_exploracio_).toSec();
     int t_min = int(t)/60;
     int t_sec = int(t)%60;
 
-    ROS_INFO_ONCE("EXPLORACIÓ ACABADA");
-    ROS_INFO_ONCE("--- Enviats %d goals (arribats %d).", num_goals_enviats_, num_goals_ok_);
-    ROS_INFO_ONCE("--- Distància recorreguda %.2f m.", distancia_recorreguda_);
-
-    ROS_INFO_ONCE("--- Duració %2.2i:%2.2i minutes", t_min, t_sec);
-    ROS_INFO_ONCE("--- Explorat %.2f m^2 (%d celles).", celles_explorades_*map_.info.resolution*map_.info.resolution, celles_explorades_);
-    ROS_INFO_ONCE("Si vols salvar el mapa, recorda fer: $rosrun map_server map_saver -f my_map_name");
+    printf("//////////////////////////////////////////////\n");
+    printf("/////////// EXPLORACIo ACABADA! //////////////\n");
+    printf("//////////////////////////////////////////////\n");
+    printf("\tEnviats %d goals (arribats %d)\n", num_goals_enviats_, num_goals_ok_);
+    printf("\tDistancia recorreguda %.2f m\n", distancia_recorreguda_);
+    printf("\tDuracio %2.2i:%2.2i min\n", t_min, t_sec);
+    printf("\tExplorat %.2f m^2 (%d celles)\n", celles_explorades_*map_.info.resolution*map_.info.resolution, celles_explorades_);
+    printf("!!! Si vols salvar el mapa, recorda fer: $rosrun map_server map_saver -f my_map_name\n");
 
     ros::shutdown();
 }
 
 ///// FUNCIONS AUXILIARS //////////////////////////////////////////////////////////////////////
-geometry_msgs::Pose ExploraRandom::generaRandomPoseAlVoltant(float radius, const geometry_msgs::Pose& referencia)
+geometry_msgs::Pose ExploraFronteraMajor::generaRandomPoseAlVoltant(float radius, const geometry_msgs::Pose& referencia)
 {
   geometry_msgs::Pose goal_pose;
 
-  srand((unsigned)time(NULL));
   if (radius <= 0)
   {
       ROS_WARN("getRandomPose: radius must be > 0. Changed to 1");
@@ -105,6 +164,7 @@ geometry_msgs::Pose ExploraRandom::generaRandomPoseAlVoltant(float radius, const
   }
 
   // dona una pose entre +-radius al voltant de referencia
+  //srand((unsigned)time(NULL));
   float rand_yaw = 2*M_PI * (rand()%100)/100.0;
   float rand_r = radius*(rand()%100)/100.0;
 
@@ -115,7 +175,7 @@ geometry_msgs::Pose ExploraRandom::generaRandomPoseAlVoltant(float radius, const
   return goal_pose;
 }
 
-bool ExploraRandom::esGoalValid(const geometry_msgs::Point & point, double & path_length)
+bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, double & path_length)
 {
   bool valid=false;
   nav_msgs::GetPlan get_plan_srv;
@@ -133,7 +193,7 @@ bool ExploraRandom::esGoalValid(const geometry_msgs::Point & point, double & pat
     if(get_plan_srv.response.plan.poses.size()!=0)
     {
       path_length = calculaLongitudPlan(get_plan_srv.response.plan.poses);
-      ROS_INFO("path length %f", path_length);
+      ROS_INFO("Goal Vàlid! Distancia total de la trajectòria al goal: %f m", path_length);
       valid=true;
     }
   }
@@ -143,7 +203,7 @@ bool ExploraRandom::esGoalValid(const geometry_msgs::Point & point, double & pat
   return valid;
 }
 
-double ExploraRandom::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses)
+double ExploraFronteraMajor::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses)
 {
   double length=0.0;
   if(poses.size()>=1)
@@ -161,9 +221,9 @@ double ExploraRandom::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped
   return length;
 }
 
-// FUNCIONS DE NAVEGACIÓ ////////////////////////////////////////////////////////////////////////////////////////
+// FUNCIONS DE NAVEGACIo ////////////////////////////////////////////////////////////////////////////////////////
 //moveRobot: envia un goal al robot
-bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
+bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
 {
   //espera action server
   if(!action_move_base_.waitForServer(ros::Duration(5.0)))
@@ -189,7 +249,8 @@ bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
   ros::Duration t = ros::Time::now() - inici_exploracio_;
   int elapsed_time_minutes = int(t.toSec())/60;
   int elapsed_time_seconds = int(t.toSec())%60;
-  ROS_INFO("Status de l'exploració: Enviats %d goals (assolits %d). Distància recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel·les)",
+
+  printf("Status de l'exploracio: Enviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
            num_goals_enviats_,
            num_goals_ok_,
            distancia_recorreguda_,
@@ -198,15 +259,15 @@ bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
            celles_explorades_);
 
   action_move_base_.sendGoal(goal,
-                             boost::bind(&ExploraRandom::move_baseDone, this, _1, _2),
+                             boost::bind(&ExploraFronteraMajor::move_baseDone, this, _1, _2),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleActiveCallback(),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleFeedbackCallback());
   robot_status_=0; //movent-se
   return true;
 }
 
-//move_baseDone: es crida quan el robot assoleix un goal o es cancela per alguna raó
-void ExploraRandom::move_baseDone(const actionlib::SimpleClientGoalState& state,  const move_base_msgs::MoveBaseResultConstPtr& result)
+//move_baseDone: es crida quan el robot assoleix un goal o es cancela per alguna rao
+void ExploraFronteraMajor::move_baseDone(const actionlib::SimpleClientGoalState& state,  const move_base_msgs::MoveBaseResultConstPtr& result)
 {
   //ROS_INFO("move_baseDone");
   if(state==actionlib::SimpleClientGoalState::SUCCEEDED)
@@ -218,8 +279,8 @@ void ExploraRandom::move_baseDone(const actionlib::SimpleClientGoalState& state,
     robot_status_=2; //error
 }
 
-// Calcula la posició actual a través de TF
-bool ExploraRandom::actualitzaPosicioRobot()
+// Calcula la posicio actual a través de TF
+bool ExploraFronteraMajor::actualitzaPosicioRobot()
 {
   static bool first=true;
   tf::StampedTransform transform;
@@ -267,7 +328,7 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "explora_random_node");
     ros::NodeHandle nh("~");
-    ExploraRandom node_explora(nh);
+    ExploraFronteraMajor node_explora(nh);
     ros::Rate loop_rate(10);
 
     while (ros::ok())

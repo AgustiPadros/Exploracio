@@ -1,5 +1,5 @@
-#ifndef INCLUDE_EXPLORA_RANDOM_H_
-#define INCLUDE_EXPLORA_RANDOM_H_
+#ifndef INCLUDE_EXPLORA_FRONTERA_MAJOR_H_
+#define INCLUDE_EXPLORA_FRONTERA_MAJOR_H_
 
 #include <ros/ros.h>
 #include <vector>
@@ -15,7 +15,7 @@
 
 #include "nav_msgs/GetPlan.h"
 
-class ExploraRandom
+class ExploraFronteraMajor
 {
     private:
       ros::NodeHandle nh_;
@@ -27,13 +27,12 @@ class ExploraRandom
       tf::TransformListener listener_;
 
       int robot_status_; //0: movent-se, 1: goal assolit, 2: no s'ha pogut arribar al goal
-      int min_frontier_size_; // tamany minim de frontera
       geometry_msgs::Pose target_goal_; //últim goal enviat
       geometry_msgs::Pose robot_pose_; // posició actual del robot
       geometry_msgs::Pose prev_robot_pose_; //última posició del robot (s'utilitza per calcular distància recorreguda)
 
       nav_msgs::OccupancyGrid map_;
-      exploracio::Fronteres fronteres_;
+      exploracio::Fronteres fronteres_msg_;
 
       // estadístiques
       int num_celles_; //nombre de cel·les del mapa (height*width)
@@ -43,9 +42,10 @@ class ExploraRandom
       ros::Time inici_exploracio_; // per calcular el temps total de l'exploració
       int celles_explorades_; // nombre de cel·les explorades
       bool exploracio_acabada_; // flag per finalitar l'exploració
+      bool exploracio_iniciada_; // flag per iniciar l'exploració
 
     public:
-      ExploraRandom(ros::NodeHandle& nh);
+      ExploraFronteraMajor(ros::NodeHandle& nh);
       void treballa();
 
     private:
@@ -69,4 +69,4 @@ class ExploraRandom
       bool actualitzaPosicioRobot();
 };
 
-#endif /* INCLUDE_EXPLORA_RANDOM_H_ */
+#endif /* INCLUDE_EXPLORA_FRONTERA_MAJOR_H_ */
