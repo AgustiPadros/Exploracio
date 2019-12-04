@@ -1,5 +1,5 @@
-#ifndef INCLUDE_EXPLORA_FRONTERA_MAJOR_H_
-#define INCLUDE_EXPLORA_FRONTERA_MAJOR_H_
+#ifndef INCLUDE_EXPLORA_FRONTERES_H_
+#define INCLUDE_EXPLORA_FRONTERES_H_
 
 #include <ros/ros.h>
 #include <vector>
@@ -69,4 +69,4 @@ class ExploraFronteraMajor
       bool actualitzaPosicioRobot();
 };
 
-#endif /* INCLUDE_EXPLORA_FRONTERA_MAJOR_H_ */
+#endif /* INCLUDE_EXPLORA_FRONTERES_H_ */

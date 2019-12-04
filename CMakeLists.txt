@@ -142,7 +142,7 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/exploracio_node.cpp)
 add_executable(troba_fronteres_node src/troba_fronteres.cpp)
 add_executable(explora_random_node src/explora_random.cpp)
-add_executable(explora_frontera_major_node src/explora_frontera_major.cpp)
+add_executable(explora_fronteres_node src/explora_fronteres.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -155,7 +155,7 @@ add_executable(explora_frontera_major_node src/explora_frontera_major.cpp)
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(troba_fronteres_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(explora_random_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(explora_frontera_major_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(explora_fronteres_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(troba_fronteres_node
@@ -165,7 +165,7 @@ target_link_libraries(troba_fronteres_node
 target_link_libraries(explora_random_node
   	${catkin_LIBRARIES}
 )
-target_link_libraries(explora_frontera_major_node
+target_link_libraries(explora_fronteres_node
   	${catkin_LIBRARIES}
 )
 

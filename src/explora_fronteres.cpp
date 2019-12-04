@@ -1,4 +1,4 @@
-#include "explora_frontera_major.h"
+#include "../include/explora_fronteres.h"
 
 ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
     nh_(nh),
