@@ -8,6 +8,8 @@ TrobaFronteres::TrobaFronteres(ros::NodeHandle& nh)
 
     fronteres_pub_       = nh_.advertise<exploracio::Fronteres>("fronteres", 1);
     mapa_fronteres_pub_  = nh_.advertise<nav_msgs::OccupancyGrid>("mapa_fronteres", 1);
+    mapa_lliures_pub_    = nh_.advertise<nav_msgs::OccupancyGrid>("mapa_lliures", 1);
+    mapa_filtrat_pub_    = nh_.advertise<nav_msgs::OccupancyGrid>("mapa_filtrat", 1);
     markers_pub_         = nh_.advertise<visualization_msgs::MarkerArray>("markers", 1);
     map_sub_             = nh_.subscribe("/map", 1, &TrobaFronteres::mapCallback,this);
 }
@@ -16,19 +18,54 @@ void TrobaFronteres::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
     ROS_INFO("mapa rebut!");
 
-    const nav_msgs::OccupancyGrid& mapa_occupacio = *msg;
+    nav_msgs::OccupancyGrid mapa_occupacio = *msg;
     nav_msgs::OccupancyGrid mapa_fronteres = *msg;
+    nav_msgs::OccupancyGrid mapa_lliures = *msg;
 
-    // reseteja mapa_fronteres
+    // reseteja mapes
     mapa_fronteres.data.assign(mapa_fronteres.data.size(), 0);
+    mapa_lliures.data.assign(mapa_lliures.data.size(), 0);
 
-    // assigna si és frontera cada cel·la
+    // FILTRAR CEL·LES LLIURES DESCONNECTADES
+    // crea mapa lliures (assigna si és lliure cada cel·la)
+    for(int i = 0; i < mapa_lliures.data.size(); ++i)
+    {
+        if(mapa_occupacio.data[i] == 0)
+            mapa_lliures.data[i] = 100;
+        //else
+        //    mapa_lliures.data[i] = 0;
+    }
+    // Etiqueta lliures (connected cells)
+    std::map<int,int> labels_lliures_sizes;
+    std::vector<int> labels_lliures = twoPassLabeling(mapa_lliures, labels_lliures_sizes);
+    // Classifiquem com a desconegudes tot els grups lliures menys el més gran
+    int remaining_label = std::max_element(labels_lliures_sizes.begin(),
+                                           labels_lliures_sizes.end(),
+                                           [] (const std::pair<int,int> & p1, const std::pair<int,int> & p2) {return p1.second < p2.second;})->first;
+    for(int i = 0; i < mapa_occupacio.data.size(); ++i)
+    {
+        if (mapa_occupacio.data[i] == 0 and labels_lliures[i] != remaining_label)
+        {
+            mapa_occupacio.data[i] = -1;
+            mapa_lliures.data[i] = 0;
+        }
+    }
+    // publicar mapa_lliures
+    mapa_lliures_pub_.publish(mapa_lliures);
+    ROS_INFO("mapa de lliures publicat!");
+
+    // publicar mapa_lliures
+    mapa_filtrat_pub_.publish(mapa_occupacio);
+    ROS_INFO("mapa filtrat publicat!");
+
+    // TROBAR FRONTERES
+    // crea mapa fronteres (assigna si és frontera cada cel·la)
     for(int i = 0; i < mapa_fronteres.data.size(); ++i)
     {
         if(esFrontera(i, mapa_occupacio))
             mapa_fronteres.data[i] = 100;
-        else
-            mapa_fronteres.data[i] = 0;
+        //else
+        //    mapa_fronteres.data[i] = 0;
     }
 
     // publicar mapa_fronteres
@@ -36,15 +73,21 @@ void TrobaFronteres::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
     ROS_INFO("mapa de fronteres publicat!");
 
     // Etiqueta fronteres (connected cells)
-    std::vector<int> labels = twoPassLabeling(mapa_fronteres);
+    std::map<int,int> labels_sizes;
+    std::vector<int> labels = twoPassLabeling(mapa_fronteres, labels_sizes);
 
     // Crea i omple missatge fronteres
     exploracio::Fronteres fronteres_msg;
     fronteres_msg.header = msg->header;
+    fronteres_msg.fronteres.clear();
     for (int i = 0; i < labels.size(); ++i)
     {
         if(labels[i]!=0) //cel·la etiquetada
         {
+            // Si tamany frontera massa petit, continuem
+            if (labels_sizes[labels[i]] < min_frontier_size_)
+                continue;
+
             // Busca frontera ja existent
             bool new_label = true;
             for (unsigned int j = 0; j < fronteres_msg.fronteres.size(); j++)
@@ -63,22 +106,12 @@ void TrobaFronteres::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
             {
                 exploracio::Frontera nova_frontera;
                 nova_frontera.id = labels[i];
+                nova_frontera.size = labels_sizes[labels[i]];
                 nova_frontera.celles_celles.push_back(i);
                 nova_frontera.celles_punts.push_back(cell2point(i,mapa_fronteres));
                 fronteres_msg.fronteres.push_back(nova_frontera);
             }
         }
-    }
-
-    // calcular tamany i filtrar fronteres massa petites
-    for (auto f_it = fronteres_msg.fronteres.begin(); f_it != fronteres_msg.fronteres.end();)
-    {
-        f_it->size = f_it->celles_celles.size();
-
-        if (f_it->size < min_frontier_size_)
-            f_it = fronteres_msg.fronteres.erase(f_it);
-        else
-            f_it++;
     }
 
     // Calcula cella central
@@ -155,10 +188,11 @@ bool TrobaFronteres::esFrontera(const int& cell, const nav_msgs::OccupancyGrid& 
 }
 
 // Two pass labeling to label frontiers [http://en.wikipedia.org/wiki/Connected-component_labeling]
-std::vector<int> TrobaFronteres::twoPassLabeling(const nav_msgs::OccupancyGrid& mapa_fronteres) const
+std::vector<int> TrobaFronteres::twoPassLabeling(const nav_msgs::OccupancyGrid& mapa_etiquetar, std::map<int,int>& labels_sizes) const
 {
-    std::vector<int> labels(mapa_fronteres.data.size());
-    labels.assign(mapa_fronteres.data.begin(), mapa_fronteres.data.end());
+    labels_sizes.clear();
+    std::vector<int> labels(mapa_etiquetar.data.size());
+    labels.assign(mapa_etiquetar.data.begin(), mapa_etiquetar.data.end());
 
     std::vector<int> neigh_labels;
     std::vector<int> rank(1000);
@@ -167,16 +201,16 @@ std::vector<int> TrobaFronteres::twoPassLabeling(const nav_msgs::OccupancyGrid& 
     int current_label_=1;
 
     // 1ST PASS: Assign temporary labels to frontiers and establish relationships
-    for(unsigned int i = 0; i < mapa_fronteres.data.size(); i++)
+    for(unsigned int i = 0; i < mapa_etiquetar.data.size(); i++)
     {
-        if( mapa_fronteres.data[i] != 0)
+        if( mapa_etiquetar.data[i] != 0)
         {
             neigh_labels.clear();
             // Find 8-connectivity neighbours already labeled
-            if(upleftCell(i,mapa_fronteres)  != -1 && labels[upleftCell(i,mapa_fronteres)]  != 0) neigh_labels.push_back(labels[upleftCell(i,mapa_fronteres)]);
-            if(upCell(i,mapa_fronteres)      != -1 && labels[upCell(i,mapa_fronteres)]      != 0) neigh_labels.push_back(labels[upCell(i,mapa_fronteres)]);
-            if(uprightCell(i,mapa_fronteres) != -1 && labels[uprightCell(i,mapa_fronteres)] != 0) neigh_labels.push_back(labels[uprightCell(i,mapa_fronteres)]);
-            if(leftCell(i,mapa_fronteres)    != -1 && labels[leftCell(i,mapa_fronteres)]    != 0) neigh_labels.push_back(labels[leftCell(i,mapa_fronteres)]);
+            if(upleftCell(i,mapa_etiquetar)  != -1 && labels[upleftCell(i,mapa_etiquetar)]  != 0) neigh_labels.push_back(labels[upleftCell(i,mapa_etiquetar)]);
+            if(upCell(i,mapa_etiquetar)      != -1 && labels[upCell(i,mapa_etiquetar)]      != 0) neigh_labels.push_back(labels[upCell(i,mapa_etiquetar)]);
+            if(uprightCell(i,mapa_etiquetar) != -1 && labels[uprightCell(i,mapa_etiquetar)] != 0) neigh_labels.push_back(labels[uprightCell(i,mapa_etiquetar)]);
+            if(leftCell(i,mapa_etiquetar)    != -1 && labels[leftCell(i,mapa_etiquetar)]    != 0) neigh_labels.push_back(labels[leftCell(i,mapa_etiquetar)]);
 
             if(neigh_labels.empty())                                                  // case: No neighbours
             {
@@ -196,9 +230,17 @@ std::vector<int> TrobaFronteres::twoPassLabeling(const nav_msgs::OccupancyGrid& 
     // 2ND PASS: Assign final label
     dj_set.compress_sets(labels.begin(), labels.end());
     // compress sets for efficiency
-    for(unsigned int i = 0; i < mapa_fronteres.data.size(); i++)
+    for(unsigned int i = 0; i < mapa_etiquetar.data.size(); i++)
         if( labels[i] != 0)
-            labels[i] = dj_set.find_set(labels[i]);                                 // relabel each element with the lowest equivalent label
+        {
+            // relabel each element with the lowest equivalent label
+            labels[i] = dj_set.find_set(labels[i]);
+            // increment the size of the label
+            if (labels_sizes.count(labels[i]) == 0)
+                labels_sizes[labels[i]] = 1;
+            else
+                labels_sizes[labels[i]]++;
+        }
 
     return labels;
 }

@@ -19,7 +19,7 @@ class TrobaFronteres
 {
     private:
       ros::NodeHandle nh_;
-      ros::Publisher fronteres_pub_, mapa_fronteres_pub_, markers_pub_;
+      ros::Publisher fronteres_pub_, mapa_fronteres_pub_, mapa_lliures_pub_, mapa_filtrat_pub_, markers_pub_;
       ros::Subscriber map_sub_;
       visualization_msgs::MarkerArray markers_;
       int min_frontier_size_; // tamany minim de frontera
@@ -29,7 +29,7 @@ class TrobaFronteres
 
     private:
       void mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg);
-      std::vector<int> twoPassLabeling(const nav_msgs::OccupancyGrid& mapa_fronteres) const;
+      std::vector<int> twoPassLabeling(const nav_msgs::OccupancyGrid& mapa_fronteres, std::map<int,int>& labels_sizes) const;
       bool esFrontera(const int& cell, const nav_msgs::OccupancyGrid& mapa) const;
       void publishMarkers(const exploracio::Fronteres& fronteres_msg);
 

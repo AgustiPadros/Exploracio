@@ -36,11 +36,13 @@ void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstP
     // Fins que no hi ha cap missatge de fronteres, no comença l'exploració
     exploracio_iniciada_ = true;
 
+    // Si no hi ha noves fronteres, finalitza l'exploració
+    if (fronteres_msg_.fronteres.empty())
+        exploracio_acabada_ = true;
 //
 //
 //    printf("============== Nou missatge Fronteres rebut! ==============\n");
 //    printf("stamp: %i.%i | frame_id: %s | seq: %i\n", fronteres_msg_.header.stamp.sec, fronteres_msg_.header.stamp.nsec, fronteres_msg_.header.frame_id.c_str(), fronteres_msg_.header.seq);
-//    //printf("map_seq: %i\n", fronteres_msg_.map_seq);
 //    printf("Fronteres: %lu\n", fronteres_msg_.fronteres.size());
 //    for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
 //    {
@@ -193,7 +195,7 @@ bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, doubl
     if(get_plan_srv.response.plan.poses.size()!=0)
     {
       path_length = calculaLongitudPlan(get_plan_srv.response.plan.poses);
-      ROS_INFO("Goal Vàlid! Distancia total de la trajectòria al goal: %f m", path_length);
+      ROS_INFO("Goal Valid! Distancia total de la trajectoria al goal: %f m", path_length);
       valid=true;
     }
   }
@@ -250,7 +252,7 @@ bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
   int elapsed_time_minutes = int(t.toSec())/60;
   int elapsed_time_seconds = int(t.toSec())%60;
 
-  printf("Status de l'exploracio: Enviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
+  printf(">>> Status de l'exploracio: Enviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
            num_goals_enviats_,
            num_goals_ok_,
            distancia_recorreguda_,
