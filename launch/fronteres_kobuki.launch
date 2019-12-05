@@ -17,9 +17,4 @@
   	      <remap from="~map" to="/map"/>
 	</node>
 	
-	<node name="rviz"
-          pkg="rviz"
-          type="rviz" 
-          args="-d $(find exploracio)/rviz/fronteres.rviz" />
-	
 </launch>
