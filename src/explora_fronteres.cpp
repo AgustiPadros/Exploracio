@@ -158,7 +158,7 @@ void ExploraFronteraMajor::acaba()
     printf("\tDistancia recorreguda %.2f m\n", distancia_recorreguda_);
     printf("\tDuracio %2.2i:%2.2i min\n", t_min, t_sec);
     printf("\tExplorat %.2f m^2 (%d celles)\n", celles_explorades_*map_.info.resolution*map_.info.resolution, celles_explorades_);
-    printf("!!! Si vols salvar el mapa, recorda fer: $rosrun map_server map_saver -f my_map_name\n");
+    printf("!!!!!! Si vols salvar el mapa, recorda fer:\n\trosrun map_server map_saver -f my_map_name\n\n\n");
 
     ros::shutdown();
 }
