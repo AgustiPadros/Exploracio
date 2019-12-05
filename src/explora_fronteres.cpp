@@ -27,6 +27,16 @@ ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
 void ExploraFronteraMajor::mapCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg)
 {
     map_=*msg;
+
+    // calcula cel·les explorades
+    celles_explorades_ = 0;
+    for(int i = 0; i < map_.data.size(); ++i)
+    {
+        if(map_.data[i] != -1)
+        {
+            celles_explorades_++;
+        }
+    }
 }
 
 void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstPtr& msg)
@@ -39,8 +49,7 @@ void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstP
     // Si no hi ha noves fronteres, finalitza l'exploració
     if (fronteres_msg_.fronteres.empty())
         exploracio_acabada_ = true;
-//
-//
+
 //    printf("============== Nou missatge Fronteres rebut! ==============\n");
 //    printf("stamp: %i.%i | frame_id: %s | seq: %i\n", fronteres_msg_.header.stamp.sec, fronteres_msg_.header.stamp.nsec, fronteres_msg_.header.frame_id.c_str(), fronteres_msg_.header.seq);
 //    printf("Fronteres: %lu\n", fronteres_msg_.fronteres.size());
@@ -252,7 +261,7 @@ bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
   int elapsed_time_minutes = int(t.toSec())/60;
   int elapsed_time_seconds = int(t.toSec())%60;
 
-  printf(">>> Status de l'exploracio: Enviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
+  printf(">>> Status de l'exploracio:\n\tEnviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
            num_goals_enviats_,
            num_goals_ok_,
            distancia_recorreguda_,
