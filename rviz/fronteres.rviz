@@ -6,9 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /Fronteres1
         - /Fronteres1/Namespaces1
-        - /Pose1
       Splitter Ratio: 0.5
     Tree Height: 719
   - Class: rviz/Selection
@@ -53,13 +51,13 @@ Visualization Manager:
       Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
       Value: true
-    - Alpha: 0.699999988
+    - Alpha: 1
       Class: rviz/Map
       Color Scheme: map
       Draw Behind: false
       Enabled: true
-      Name: Map
-      Topic: /map
+      Name: Mapa filtrat
+      Topic: /troba_fronteres_node/mapa_filtrat
       Unreliable: false
       Use Timestamp: false
       Value: true
@@ -409,16 +407,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 17.1389503
+      Distance: 20.5836487
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -1.95526338
-        Y: -1.23691726
-        Z: -1.41403294
+        X: -3.83695769
+        Y: -1.53295195
+        Z: -1.00134826
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
