@@ -21,6 +21,8 @@ ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
 
     get_plan_client_     = nh_.serviceClient<nav_msgs::GetPlan>("/move_base/NavfnROS/make_plan");
 
+    nh_.param<double>("temps_max_goal", temps_max_goal_, 20);
+
     srand((unsigned)time(NULL));
 }
 
@@ -79,9 +81,18 @@ bool ExploraFronteraMajor::replanifica()
 {
   bool replan = false;
 
+  // EXEMPLE: si ha passat més de 20s des de l'últim goal, replanifiquem
+  double dt_ultim_goal = (ros::Time::now() - temps_target_goal_).toSec();
+
+  if (dt_ultim_goal > temps_max_goal_)
+  {
+      ROS_INFO("Replanificant: Temps des que s'ha enviat l'ultim goal: %f > %f", dt_ultim_goal, temps_max_goal_);
+      return true;
+  }
+
   //EXEMPLE: replanifica quan el robot hagi arribat
   if(robot_status_!=0)
-    replan = true;
+      return true;
 
   return replan;
 }
@@ -134,6 +145,7 @@ void ExploraFronteraMajor::treballa()
       if(replanifica())
       {
         target_goal_ = decideixGoal();
+        temps_target_goal_ = ros::Time::now();
         moveRobot(target_goal_);
       }
     }

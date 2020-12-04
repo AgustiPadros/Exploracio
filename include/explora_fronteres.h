@@ -40,6 +40,8 @@ class ExploraFronteraMajor
       int num_goals_ok_; // total gols assolits
       double distancia_recorreguda_; // distància recorreguda al llarg de l'exploració (m)
       ros::Time inici_exploracio_; // per calcular el temps total de l'exploració
+      ros::Time temps_target_goal_; // moment en que s'ha enviat l'últim goal
+      double temps_max_goal_; // temps màxim per arribar a un goal abans de replanificar
       int celles_explorades_; // nombre de cel·les explorades
       bool exploracio_acabada_; // flag per finalitar l'exploració
       bool exploracio_iniciada_; // flag per iniciar l'exploració
