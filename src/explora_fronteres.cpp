@@ -131,15 +131,12 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
 
   // Repassem les utilitats per trobar la millor frontera
   int i_best = 0;
-  if (utilitats.size() > 1)
+  for (int i = 0; i < utilitats.size(); i++)
   {
-      for (int i = 1; i < utilitats.size(); i++)
+      // guardem i si la frontera i és més gran que la guardada a i_max
+      if (utilitats[i] > utilitats[i_best])
       {
-          // guardem i si la frontera i és més gran que la guardada a i_max
-          if (utilitats[i] > utilitats[i_best])
-          {
-              i_best = i;
-          }
+          i_best = i;
       }
   }
 
