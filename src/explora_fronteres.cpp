@@ -93,7 +93,7 @@ bool ExploraFronteraMajor::replanifica()
 
   if (dt_ultim_goal > temps_max_goal_)
   {
-      ROS_INFO("Replanificant: Temps des que s'ha enviat l'ultim goal: %f > %f", dt_ultim_goal, temps_max_goal_);
+      printf("Replanificant: Temps des que s'ha enviat l'ultim goal: %f > %f", dt_ultim_goal, temps_max_goal_);
       temps_target_goal_ = ros::Time::now();
       return true;
   }
@@ -131,23 +131,26 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
 
   // Repassem les utilitats per trobar la millor frontera
   int i_best = 0;
-  for (int i = 1; i < utilitats.size(); i++)
+  if (utilitats.size() > 1)
   {
-      // guardem i si la frontera i és més gran que la guardada a i_max
-      if (utilitats[i] > utilitats[i_best])
+      for (int i = 1; i < utilitats.size(); i++)
       {
-          i_best = i;
+          // guardem i si la frontera i és més gran que la guardada a i_max
+          if (utilitats[i] > utilitats[i_best])
+          {
+              i_best = i;
+          }
       }
   }
 
   // Guardem al goal la posició del centre lliure de la frontera i la orientació actual que el robot (per exemple)
   g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
   g.orientation = robot_pose_.orientation; // no cal canviar-la
-  printf(" DecideixGoal(): frontera amb millor utilitat: %i\n", fronteres_msg_.fronteres[i_best].id);
+  printf("DecideixGoal(): Millor frontera: %i amb utilitat: %f\n", fronteres_msg_.fronteres[i_best].id, utilitats[i_best]);
 
   // Si el centre_lliure_punt de la frontera més gran no és un goal vàlid, generem un goal random al voltant
   // Anirem augmentant el radi fins que trobem un goal vàlid
-  double radi = 1.0;
+  double radi = 0.1;
   while (!esGoalValid(g.position, longitud))
   {
       printf("!!! Goal no valid (frontera id: %i). Generant goal random amb radi %f...\n",fronteres_msg_.fronteres[i_best].id,radi);
@@ -156,7 +159,7 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
       g = generaRandomPoseAlVoltant(radi, g);
 
       // Fem créixer el radi 5cm
-      // Posar un radi més gran que el tamany del mapa faria més dificil genera una mostra vàlida
+      // Posar un radi més gran que el tamany del mapa faria més dificil generar una mostra vàlida
       if (radi < map_.info.height or radi < map_.info.width)
       {
           radi += 0.05;
