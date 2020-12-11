@@ -98,7 +98,7 @@ bool ExploraFronteraMajor::replanifica()
       return true;
   }
 
-  //EXEMPLE: replanifica quan el robot hagi arribat
+  // Replanifica quan el robot hagi arribat (no esborreu!)
   if(robot_status_!=0)
       return true;
 
@@ -143,7 +143,7 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
   // Guardem al goal la posició del centre lliure de la frontera i la orientació actual que el robot (per exemple)
   g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
   g.orientation = robot_pose_.orientation; // no cal canviar-la
-  printf(" DecideixGoal(): frontera amb millor utilitat: %i", fronteres_msg_.fronteres[i_best].id);
+  printf(" DecideixGoal(): frontera amb millor utilitat: %i\n", fronteres_msg_.fronteres[i_best].id);
 
   // Si el centre_lliure_punt de la frontera més gran no és un goal vàlid, generem un goal random al voltant
   // Anirem augmentant el radi fins que trobem un goal vàlid
@@ -245,7 +245,7 @@ bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, doubl
     if(get_plan_srv.response.plan.poses.size()!=0)
     {
       path_length = calculaLongitudPlan(get_plan_srv.response.plan.poses);
-      ROS_INFO("Goal Valid! Distancia total de la trajectoria al goal: %f m", path_length);
+      ROS_DEBUG("Goal Valid! Distancia total de la trajectoria al goal: %f m", path_length);
       valid=true;
     }
   }
@@ -291,7 +291,7 @@ bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
   goal.target_pose.pose = goal_pose;
 
   num_goals_enviats_++;
-  ROS_INFO("moveRobot: Enviant Goal #%d: x=%4.2f, y=%4.2f, yaw=%4.2f al frame_id=%s",
+  ROS_DEBUG("moveRobot: Enviant Goal #%d: x=%4.2f, y=%4.2f, yaw=%4.2f al frame_id=%s",
            num_goals_enviats_,
            goal.target_pose.pose.position.x,
            goal.target_pose.pose.position.y,
