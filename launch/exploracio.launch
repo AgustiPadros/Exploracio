@@ -6,6 +6,7 @@
   		  name="explora_fronteres_node" 
   	      output="screen">
   	      <remap from="/fronteres" to="/troba_fronteres_node/fronteres"/>
+  	      <param name="temps_max_goal" value="10"/>
 	</node>
 	
 </launch>

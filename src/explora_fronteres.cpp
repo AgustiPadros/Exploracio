@@ -55,8 +55,15 @@ void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstP
 //    printf("============== Nou missatge Fronteres rebut! ==============\n");
 //    printf("stamp: %i.%i | frame_id: %s | seq: %i\n", fronteres_msg_.header.stamp.sec, fronteres_msg_.header.stamp.nsec, fronteres_msg_.header.frame_id.c_str(), fronteres_msg_.header.seq);
 //    printf("Fronteres: %lu\n", fronteres_msg_.fronteres.size());
+//
 //    for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
 //    {
+//        fronteres_msg_.fronteres[i].id;
+//        fronteres_msg_.fronteres[i].size;
+//        fronteres_msg_.fronteres[i].centre_lliure_punt.x;
+//        fronteres_msg_.fronteres[i].centre_lliure_punt.y;
+//        fronteres_msg_.fronteres[i].centre_lliure_punt.z;
+//
 //        printf("\tfrontera %i:\n",i);
 //        printf("\t\tid %i\n",fronteres_msg_.fronteres[i].id);
 //        printf("\t\tsize %i\n",fronteres_msg_.fronteres[i].size);
@@ -81,12 +88,13 @@ bool ExploraFronteraMajor::replanifica()
 {
   bool replan = false;
 
-  // EXEMPLE: si ha passat més de 20s des de l'últim goal, replanifiquem
+  // EXEMPLE: si ha passat més de temps_max_goal_ des de l'últim goal, replanifiquem
   double dt_ultim_goal = (ros::Time::now() - temps_target_goal_).toSec();
 
   if (dt_ultim_goal > temps_max_goal_)
   {
       ROS_INFO("Replanificant: Temps des que s'ha enviat l'ultim goal: %f > %f", dt_ultim_goal, temps_max_goal_);
+      temps_target_goal_ = ros::Time::now();
       return true;
   }
 
@@ -102,27 +110,48 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
   geometry_msgs::Pose g;
   double longitud;
 
-  // Repassem les fronteres per trobar la més gran
-  int i_max = 0;
+  // Repassem les fronteres per calcular la utilitat
+  std::vector<double> utilitats(fronteres_msg_.fronteres.size());
   for (int i = 1; i < fronteres_msg_.fronteres.size(); i++)
   {
-      // guardem i si la frontera i és més gran que la guardada a i_max
-      if (fronteres_msg_.fronteres[i].size > fronteres_msg_.fronteres[i_max].size)
+      // funció d'utilitat: tamany de frontera
+      //utilitats[i] = fronteres_msg_.fronteres[i].size;
+
+      // funció d'utilitat: distància al centre de la frontera
+      if (esGoalValid(fronteres_msg_.fronteres[i].centre_lliure_punt, longitud))
       {
-          i_max = i;
+          utilitats[i] = -longitud;
+      }
+      else
+      {
+          utilitats[i] = -1e9;
+      }
+      // TODO: penseu una altra funció d'utilitat
+  }
+
+  // Repassem les utilitats per trobar la millor frontera
+  int i_best = 0;
+  for (int i = 1; i < utilitats.size(); i++)
+  {
+      // guardem i si la frontera i és més gran que la guardada a i_max
+      if (utilitats[i] > utilitats[i_best])
+      {
+          i_best = i;
       }
   }
+
   // Guardem al goal la posició del centre lliure de la frontera i la orientació actual que el robot (per exemple)
-  g.position = fronteres_msg_.fronteres[i_max].centre_lliure_punt;
-  g.orientation = robot_pose_.orientation;
+  g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
+  g.orientation = robot_pose_.orientation; // no cal canviar-la
+  printf(" DecideixGoal(): frontera amb millor utilitat: %i", fronteres_msg_.fronteres[i_best].id);
 
   // Si el centre_lliure_punt de la frontera més gran no és un goal vàlid, generem un goal random al voltant
   // Anirem augmentant el radi fins que trobem un goal vàlid
   double radi = 1.0;
   while (!esGoalValid(g.position, longitud))
   {
-      printf("!!! Goal no valid (frontera id: %i). Generant goal random amb radi %f...\n",fronteres_msg_.fronteres[i_max].id,radi);
-      g.position = fronteres_msg_.fronteres[i_max].centre_lliure_punt;
+      printf("!!! Goal no valid (frontera id: %i). Generant goal random amb radi %f...\n",fronteres_msg_.fronteres[i_best].id,radi);
+      g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
       g.orientation = robot_pose_.orientation;
       g = generaRandomPoseAlVoltant(radi, g);
 
@@ -135,6 +164,7 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
   }
   return g;
 }
+
 void ExploraFronteraMajor::treballa()
 {
     if (!exploracio_iniciada_)
@@ -145,7 +175,6 @@ void ExploraFronteraMajor::treballa()
       if(replanifica())
       {
         target_goal_ = decideixGoal();
-        temps_target_goal_ = ros::Time::now();
         moveRobot(target_goal_);
       }
     }
