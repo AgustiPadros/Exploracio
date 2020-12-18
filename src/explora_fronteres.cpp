@@ -112,7 +112,7 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
 
   // Repassem les fronteres per calcular la utilitat
   std::vector<double> utilitats(fronteres_msg_.fronteres.size());
-  for (int i = 1; i < fronteres_msg_.fronteres.size(); i++)
+  for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
   {
       // funció d'utilitat: tamany de frontera
       //utilitats[i] = fronteres_msg_.fronteres[i].size;
