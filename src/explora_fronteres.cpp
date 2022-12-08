@@ -1,3 +1,10 @@
+/*
+* Sistemes de Navegacio - 2022/23
+* Student: PLEASE SPECIFY
+* Original delevoper: Agusti Padros (agusti.padros@salle.url.edu)
+*/
+
+
 #include "../include/explora_fronteres.h"
 
 ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
@@ -14,7 +21,7 @@ ExploraFronteraMajor::ExploraFronteraMajor(ros::NodeHandle& nh) :
     action_move_base_("move_base",true)
 {
 
-    map_sub_             = nh_.subscribe("/map", 1, &ExploraFronteraMajor::mapCallback,this);
+    map_sub_             = nh_.subscribe("map", 1, &ExploraFronteraMajor::mapCallback,this);
     fronteres_sub_       = nh_.subscribe("/fronteres", 1, &ExploraFronteraMajor::fronteresCallback,this);
 
     goal_marker_pub_     = nh_.advertise<visualization_msgs::Marker>("goal_marker", 1);
@@ -51,54 +58,21 @@ void ExploraFronteraMajor::fronteresCallback(const exploracio::Fronteres::ConstP
     // Si no hi ha noves fronteres, finalitza l'exploració
     if (fronteres_msg_.fronteres.empty())
         exploracio_acabada_ = true;
-
-//    printf("============== Nou missatge Fronteres rebut! ==============\n");
-//    printf("stamp: %i.%i | frame_id: %s | seq: %i\n", fronteres_msg_.header.stamp.sec, fronteres_msg_.header.stamp.nsec, fronteres_msg_.header.frame_id.c_str(), fronteres_msg_.header.seq);
-//    printf("Fronteres: %lu\n", fronteres_msg_.fronteres.size());
-//
-//    for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
-//    {
-//        fronteres_msg_.fronteres[i].id;
-//        fronteres_msg_.fronteres[i].size;
-//        fronteres_msg_.fronteres[i].centre_lliure_punt.x;
-//        fronteres_msg_.fronteres[i].centre_lliure_punt.y;
-//        fronteres_msg_.fronteres[i].centre_lliure_punt.z;
-//
-//        printf("\tfrontera %i:\n",i);
-//        printf("\t\tid %i\n",fronteres_msg_.fronteres[i].id);
-//        printf("\t\tsize %i\n",fronteres_msg_.fronteres[i].size);
-//        printf("\t\tcentre_punt %f, %f, %f\n",fronteres_msg_.fronteres[i].centre_punt.x,fronteres_msg_.fronteres[i].centre_punt.y,fronteres_msg_.fronteres[i].centre_punt.z);
-//        //printf("\t\tcentre_cella %i\n",fronteres_msg_.fronteres[i].centre_cella);
-//        printf("\t\tcentre_lliure_punt %f, %f, %f\n",fronteres_msg_.fronteres[i].centre_lliure_punt.x,fronteres_msg_.fronteres[i].centre_lliure_punt.y,fronteres_msg_.fronteres[i].centre_lliure_punt.z);
-//        //printf("\t\tcentre_lliure_cella %i\n",fronteres_msg_.fronteres[i].centre_lliure_cella);
-//        //printf("\t\tcelles_punts:\n");
-//        //for (int j = 0; j<fronteres_msg_.fronteres[i].celles_punts.size(); j++)
-//        //{
-//        //    printf("\t\t\t%f, %f, %f\n",fronteres_msg_.fronteres[i].celles_punts[j].x,fronteres_msg_.fronteres[i].celles_punts[j].y,fronteres_msg_.fronteres[i].celles_punts[j].z);
-//        //}
-//        //printf("\t\tcelles_celles:\n");
-//        //for (int j = 0; j<fronteres_msg_.fronteres[i].celles_punts.size(); j++)
-//        //{
-//        //    printf("\t\t\t%i\n",fronteres_msg_.fronteres[i].celles_celles[j]);
-//        //}
-//    }
 }
 
-bool ExploraFronteraMajor::replanifica()
-{
+bool ExploraFronteraMajor::replanifica() {
   bool replan = false;
 
   // EXEMPLE: si ha passat més de temps_max_goal_ des de l'últim goal, replanifiquem
   double dt_ultim_goal = (ros::Time::now() - temps_target_goal_).toSec();
 
-  if (dt_ultim_goal > temps_max_goal_)
-  {
+  if (dt_ultim_goal > temps_max_goal_) {
       printf("Replanificant: Temps des que s'ha enviat l'ultim goal: %f > %f", dt_ultim_goal, temps_max_goal_);
       temps_target_goal_ = ros::Time::now();
       return true;
   }
 
-  // Replanifica quan el robot hagi arribat (no esborreu!)
+  // Replanifica quan el robot hagi arribat (no ho esborreu)
   if(robot_status_!=0)
       return true;
 
@@ -110,55 +84,53 @@ geometry_msgs::Pose ExploraFronteraMajor::decideixGoal()
   geometry_msgs::Pose g;
   double longitud;
 
-  // Repassem les fronteres per calcular la utilitat
   std::vector<double> utilitats(fronteres_msg_.fronteres.size());
-  for (int i = 0; i < fronteres_msg_.fronteres.size(); i++)
-  {
-      // funció d'utilitat: tamany de frontera
-      //utilitats[i] = fronteres_msg_.fronteres[i].size;
+  
+  // Repassem TOTES LES FRONTERES per calcular la utilitat
+  for (int i = 0; i < fronteres_msg_.fronteres.size(); i++) {
+      
+      /* FUNCIO D'UTILITAT:
+       1. Distancia al centre de la frontera
+       2. Tamany de la frontera
+       3. Combinacio lineal de tamany + frontera
+       4. Altres (penseu!)
+      */
 
       // funció d'utilitat: distància al centre de la frontera
-      if (esGoalValid(fronteres_msg_.fronteres[i].centre_lliure_punt, longitud))
-      {
-          utilitats[i] = -longitud;
+      if (esGoalValid(fronteres_msg_.fronteres[i].centre_lliure_punt, longitud)) {
+          utilitats[i] = longitud;
       }
-      else
-      {
-          utilitats[i] = -1e9;
+      else {
+          utilitats[i] = 1e9;
       }
-      // TODO: penseu una altra funció d'utilitat
+      // TODO: penseu altres funcions d'utilitat
   }
 
-  // Repassem les utilitats per trobar la millor frontera
+  // FOR LOOP to find the most suitable border to explore (out of all the available ones analysed above)
   int i_best = 0;
-  for (int i = 0; i < utilitats.size(); i++)
-  {
-      // guardem i si la frontera i és més gran que la guardada a i_max
-      if (utilitats[i] > utilitats[i_best])
-      {
+  for (int i = 0; i < utilitats.size(); i++) {
+      // guardem i si la frontera i és més petita que la guardada a i_max
+      if (utilitats[i] < utilitats[i_best]) {
           i_best = i;
       }
   }
 
   // Guardem al goal la posició del centre lliure de la frontera i la orientació actual que el robot (per exemple)
   g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
-  g.orientation = robot_pose_.orientation; // no cal canviar-la
-  printf("DecideixGoal(): Millor frontera: %i amb utilitat: %f\n", fronteres_msg_.fronteres[i_best].id, utilitats[i_best]);
+  g.orientation = robot_pose_.orientation;
+  printf("Best border to explore: %i utility: %f\n", fronteres_msg_.fronteres[i_best].id, utilitats[i_best]);
 
   // Si el centre_lliure_punt de la frontera més gran no és un goal vàlid, generem un goal random al voltant
-  // Anirem augmentant el radi fins que trobem un goal vàlid
+  // Anirem augmentant el radi fins que trobem un goal vàlid pel Turtlebot
   double radi = 0.1;
-  while (!esGoalValid(g.position, longitud))
-  {
-      printf("!!! Goal no valid (frontera id: %i). Generant goal random amb radi %f...\n",fronteres_msg_.fronteres[i_best].id,radi);
+  while (!esGoalValid(g.position, longitud)) {
+      printf("WARNING! Goal not valid (border id: %i)... Generating random goal with radius %f...\n",fronteres_msg_.fronteres[i_best].id,radi);
       g.position = fronteres_msg_.fronteres[i_best].centre_lliure_punt;
       g.orientation = robot_pose_.orientation;
       g = generaRandomPoseAlVoltant(radi, g);
 
-      // Fem créixer el radi 5cm
-      // Posar un radi més gran que el tamany del mapa faria més dificil generar una mostra vàlida
-      if (radi < map_.info.height or radi < map_.info.width)
-      {
+      // Increase radius by 5cm in the hope goal is achievable
+      if (radi < map_.info.height/5 or radi < map_.info.width/5) {
           radi += 0.05;
       }
   }
@@ -179,7 +151,7 @@ void ExploraFronteraMajor::treballa()
       }
     }
     else
-      ROS_WARN("Couldn't get robot position!");
+      ROS_WARN("ERROR! Couldn't get robot position!");
 
     // FINAL
     if (exploracio_acabada_)
@@ -192,19 +164,18 @@ void ExploraFronteraMajor::acaba()
     int t_min = int(t)/60;
     int t_sec = int(t)%60;
 
-    printf("//////////////////////////////////////////////\n");
-    printf("/////////// EXPLORACIo ACABADA! //////////////\n");
+    printf("///////SISTEMES DE NAVEGACIÓ 2022-23/////////\n");
+    printf("/////////// EXPLORATION ENDED //////////////\n");
     printf("//////////////////////////////////////////////\n");
     printf("\tEnviats %d goals (arribats %d)\n", num_goals_enviats_, num_goals_ok_);
     printf("\tDistancia recorreguda %.2f m\n", distancia_recorreguda_);
     printf("\tDuracio %2.2i:%2.2i min\n", t_min, t_sec);
-    printf("\tExplorat %.2f m^2 (%d celles)\n", celles_explorades_*map_.info.resolution*map_.info.resolution, celles_explorades_);
     printf("!!!!!! Si vols salvar el mapa, recorda fer:\n\trosrun map_server map_saver -f my_map_name\n\n\n");
 
     ros::shutdown();
 }
 
-///// FUNCIONS AUXILIARS //////////////////////////////////////////////////////////////////////
+/* AUXILIARY FUNCTIONS */
 geometry_msgs::Pose ExploraFronteraMajor::generaRandomPoseAlVoltant(float radius, const geometry_msgs::Pose& referencia)
 {
   geometry_msgs::Pose goal_pose;
@@ -216,7 +187,6 @@ geometry_msgs::Pose ExploraFronteraMajor::generaRandomPoseAlVoltant(float radius
   }
 
   // dona una pose entre +-radius al voltant de referencia
-  //srand((unsigned)time(NULL));
   float rand_yaw = 2*M_PI * (rand()%100)/100.0;
   float rand_r = radius*(rand()%100)/100.0;
 
@@ -227,8 +197,7 @@ geometry_msgs::Pose ExploraFronteraMajor::generaRandomPoseAlVoltant(float radius
   return goal_pose;
 }
 
-bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, double & path_length)
-{
+bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, double & path_length) {
   bool valid=false;
   nav_msgs::GetPlan get_plan_srv;
   get_plan_srv.request.start.header.stamp = ros::Time::now();
@@ -240,13 +209,12 @@ bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, doubl
   get_plan_srv.request.goal.pose.position.x = point.x;
   get_plan_srv.request.goal.pose.position.y = point.y;
   get_plan_srv.request.goal.pose.orientation.w = 1.0;
-  if (get_plan_client_.call(get_plan_srv))
-  {
-    if(get_plan_srv.response.plan.poses.size()!=0)
-    {
+  
+  if (get_plan_client_.call(get_plan_srv)) {
+    if(get_plan_srv.response.plan.poses.size()!=0) {
       path_length = calculaLongitudPlan(get_plan_srv.response.plan.poses);
-      ROS_DEBUG("Goal Valid! Distancia total de la trajectoria al goal: %f m", path_length);
-      valid=true;
+      ROS_DEBUG("VALID GOAL! Distance to goal: %f m", path_length);
+      valid = true;
     }
   }
   else
@@ -255,29 +223,27 @@ bool ExploraFronteraMajor::esGoalValid(const geometry_msgs::Point & point, doubl
   return valid;
 }
 
-double ExploraFronteraMajor::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses)
-{
+double ExploraFronteraMajor::calculaLongitudPlan(std::vector<geometry_msgs::PoseStamped> poses) {
   double length=0.0;
-  if(poses.size()>=1)
-  {
-    for(unsigned int i=1; i<poses.size(); i++)
-    {
+  
+  if (poses.size() >= 1) {
+    for(unsigned int i=1; i<poses.size(); i++) {
       double x1 = poses[i-1].pose.position.x;
       double y1 = poses[i-1].pose.position.y;
       double x2 = poses[i].pose.position.x;
       double y2 = poses[i].pose.position.y;
       double d = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
-      length +=d;
+      length += d;
     }
   }
   return length;
 }
 
-// FUNCIONS DE NAVEGACIo ////////////////////////////////////////////////////////////////////////////////////////
+/* NAVIGATION FUNCTIONS */
 //moveRobot: envia un goal al robot
 bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
 {
-  //espera action server
+  // Wait for action server to come alive
   if(!action_move_base_.waitForServer(ros::Duration(5.0)))
   {
     ROS_INFO("moveRobot: Waiting for the move_base action server to come up");
@@ -286,7 +252,7 @@ bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
 
   // escriu the frame_id i stamp
   move_base_msgs::MoveBaseGoal goal;
-  goal.target_pose.header.frame_id = "/map";
+  goal.target_pose.header.frame_id = "map";
   goal.target_pose.header.stamp = ros::Time::now();
   goal.target_pose.pose = goal_pose;
 
@@ -302,43 +268,39 @@ bool ExploraFronteraMajor::moveRobot(const geometry_msgs::Pose& goal_pose)
   int elapsed_time_minutes = int(t.toSec())/60;
   int elapsed_time_seconds = int(t.toSec())%60;
 
-  printf(">>> Status de l'exploracio:\n\tEnviats %d goals (assolits %d). Distancia recorreguda %.2f m. Han passat %2.2i:%2.2i min. Explorats %.2f m^2 (%d cel.les)\n",
+  printf(">>> Exploration status:\n\n %d goals sent (%d achieved). Distance covered: %.2f m. %2.2i:%2.2i sec elapsed\n",
            num_goals_enviats_,
            num_goals_ok_,
            distancia_recorreguda_,
-           elapsed_time_minutes, elapsed_time_seconds,
-           celles_explorades_*map_.info.resolution*map_.info.resolution,
-           celles_explorades_);
+           elapsed_time_minutes, elapsed_time_seconds);
 
   action_move_base_.sendGoal(goal,
                              boost::bind(&ExploraFronteraMajor::move_baseDone, this, _1, _2),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleActiveCallback(),
                              actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>::SimpleFeedbackCallback());
-  robot_status_=0; //movent-se
+  robot_status_ = 0; //movent-se
   return true;
 }
 
-//move_baseDone: es crida quan el robot assoleix un goal o es cancela per alguna rao
+// move_baseDone(): es crida quan el robot assoleix un goal o es cancela per alguna rao
 void ExploraFronteraMajor::move_baseDone(const actionlib::SimpleClientGoalState& state,  const move_base_msgs::MoveBaseResultConstPtr& result)
 {
-  //ROS_INFO("move_baseDone");
   if(state==actionlib::SimpleClientGoalState::SUCCEEDED)
   {
-    robot_status_=1; //èxit
+    robot_status_ = 1; // SUCCESS
     num_goals_ok_++;
   }
   else
-    robot_status_=2; //error
+    robot_status_ = 2; // ERROR
 }
 
 // Calcula la posicio actual a través de TF
-bool ExploraFronteraMajor::actualitzaPosicioRobot()
-{
+bool ExploraFronteraMajor::actualitzaPosicioRobot() {
   static bool first=true;
   tf::StampedTransform transform;
-  ros::Time target_time = ros::Time(0); //ros::Time::now();
-  std::string source_frame = "/map";
-  std::string target_frame = "/base_footprint";
+  ros::Time target_time = ros::Time(0);
+  std::string source_frame = "map";
+  std::string target_frame = "base_footprint";
   try
   {
     if(listener_.waitForTransform(source_frame, target_frame, target_time, ros::Duration(5.0)))
@@ -358,7 +320,6 @@ bool ExploraFronteraMajor::actualitzaPosicioRobot()
   robot_pose_.position.y = transform.getOrigin().y();
   robot_pose_.position.z = 0.0;
   robot_pose_.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(transform.getRotation()));
-  //ROS_INFO("base_link|map: x:%fm y:%fm th:%fº", robot_pose_.position.x, robot_pose_.position.y, tf::getYaw(robot_pose_.orientation));
 
   if(first)
   {
@@ -368,7 +329,7 @@ bool ExploraFronteraMajor::actualitzaPosicioRobot()
 
   float dist_incr=std::sqrt(std::pow(prev_robot_pose_.position.x-robot_pose_.position.x,2)+std::pow(prev_robot_pose_.position.y-robot_pose_.position.y,2));
   float angle_incr=fabs(tf::getYaw(prev_robot_pose_.orientation)-tf::getYaw(robot_pose_.orientation));
-  float d=0.115; //half of the distance between wheels
+  float d=0.115; // Half of the distance between wheels
   distancia_recorreguda_ += (fabs(dist_incr+d*angle_incr)+fabs(dist_incr-d*angle_incr))/2.0f;
 
   prev_robot_pose_=robot_pose_;
@@ -383,8 +344,7 @@ int main(int argc, char **argv)
     ExploraFronteraMajor node_explora(nh);
     ros::Rate loop_rate(10);
 
-    while (ros::ok())
-    {
+    while (ros::ok()) {
         ros::spinOnce();
         loop_rate.sleep();
 
@@ -393,3 +353,4 @@ int main(int argc, char **argv)
     return 0;
 }
 
+// La Salle Campus BCN - Ramon Llull University

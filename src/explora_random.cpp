@@ -120,11 +120,11 @@ bool ExploraRandom::esGoalValid(const geometry_msgs::Point & point, double & pat
   bool valid=false;
   nav_msgs::GetPlan get_plan_srv;
   get_plan_srv.request.start.header.stamp = ros::Time::now();
-  get_plan_srv.request.start.header.frame_id = "map";
+  get_plan_srv.request.start.header.frame_id = "/map";
   get_plan_srv.request.start.pose = robot_pose_;
 
   get_plan_srv.request.goal.header.stamp = ros::Time::now();
-  get_plan_srv.request.goal.header.frame_id = "map";
+  get_plan_srv.request.goal.header.frame_id = "/map";
   get_plan_srv.request.goal.pose.position.x = point.x;
   get_plan_srv.request.goal.pose.position.y = point.y;
   get_plan_srv.request.goal.pose.orientation.w = 1.0;
@@ -174,7 +174,7 @@ bool ExploraRandom::moveRobot(const geometry_msgs::Pose& goal_pose)
 
   // escriu the frame_id i stamp
   move_base_msgs::MoveBaseGoal goal;
-  goal.target_pose.header.frame_id = "/map";
+  goal.target_pose.header.frame_id = "map";
   goal.target_pose.header.stamp = ros::Time::now();
   goal.target_pose.pose = goal_pose;
 
@@ -224,7 +224,7 @@ bool ExploraRandom::actualitzaPosicioRobot()
   static bool first=true;
   tf::StampedTransform transform;
   ros::Time target_time = ros::Time(0); //ros::Time::now();
-  std::string source_frame = "/map";
+  std::string source_frame = "map";
   std::string target_frame = "/base_footprint";
   try
   {

@@ -16,7 +16,7 @@
   		  name="troba_fronteres_node" 
   	      output="log">
   	      <param name="tamany_min_frontera" value="10"/>
-  	      <remap from="~map" to="/map"/>
+  	      <remap from="~map" to="map"/>
 	</node>
 	
 	<node name="rviz"
